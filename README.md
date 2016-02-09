@@ -20,4 +20,4 @@ You can also search:
 Search options: specify 'matchcase' to match case, 'wholeword' to match whole words,
 or 'both' to use matchcase and wholeword.
 
-CmdletJack version: 2.5 - (c) 2015 Microsoft Corporation. All rights reserved.
+CmdletJack version: 2.7 - (c) 2016 Microsoft Corporation. All rights reserved.
