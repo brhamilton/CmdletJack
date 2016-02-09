@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -8,8 +7,6 @@ using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 using System.Management.Automation;
-using System.Management.Automation.Runspaces;
-using Microsoft.PowerShell.Commands;
 
 namespace CmdletJack
 {
@@ -21,7 +18,6 @@ namespace CmdletJack
         private static XDocument xd;
         private static List<CmdletData> ProjectCmdlets = new List<CmdletData>();
         private static List<string> CommonParams = new List<string>();
-        private static List<string> ValidReportTypes = new List<string>();
         private static List<string> ApprovedCompanyNames = new List<string>();
         private static List<string> JobList;
         private static List<string> headersCmdletParamData = new List<string>();
@@ -37,11 +33,11 @@ namespace CmdletJack
         private static List<string> headersWarning = new List<string>();
         private static Dictionary<string, string> HeaderRow = new Dictionary<string, string>();
 
-        private static string projName = String.Empty;
-        private static string saveDir = String.Empty;
+        private static string projName = string.Empty;
+        private static string saveDir = string.Empty;
         private static FileInfo fi;
 
-        private static string searchPattern = String.Empty;
+        private static string searchPattern = string.Empty;
         private static bool matchcase = false;
         private static bool wholeword = false;
         private static bool append = false;
@@ -74,7 +70,6 @@ namespace CmdletJack
         {
             try
             {
-                FillValidReportTypes();
                 FillCommonParameters();
                 FillApprovedCompanyNames();
                 FillHeaders();
@@ -288,10 +283,10 @@ namespace CmdletJack
             // Called from Main when a path is provided to run reports
 
             fi = new FileInfo(path);
-            string ext = String.Empty;
+            string ext = string.Empty;
             ext = Path.GetExtension(fi.FullName);
-            string lastjob = String.Empty;
-            if (ext == String.Empty)
+            string lastjob = string.Empty;
+            if (ext == string.Empty)
             {
                 if (Directory.Exists(fi.FullName))
                 {
@@ -336,7 +331,7 @@ namespace CmdletJack
             // Confirms that the psmaml XML files can be processed.  
             // Any other XML files are ommitted from the list.
             List<string> goodList = new List<string>();
-            string job = String.Empty;
+            string job = string.Empty;
             try
             {
                 foreach (string j in JobList)
@@ -352,7 +347,7 @@ namespace CmdletJack
                             {
                                 xd = XDocument.Load(File.OpenRead(fi.FullName));
                                 IEnumerable<XElement> commands = xd.Descendants(nsCMD + "command");
-                                int cCount = commands.Count<XElement>();
+                                int cCount = commands.Count();
                                 if (cCount == 0)
                                 {
                                     Console.WriteLine("{0} is an empty project and will not be processed.", fi.Name);
@@ -388,6 +383,8 @@ namespace CmdletJack
 
         private static void DoReports(string projfile)
         {
+            string curRptRunning = string.Empty;
+
             try
             {
                 // Called from the StartJob method.
@@ -396,7 +393,7 @@ namespace CmdletJack
 
                 xd = XDocument.Load(File.OpenRead(projfile));
                 IEnumerable<XElement> commands = xd.Root.Descendants(nsCMD + "command");
-                Tallies.CmdletCount = commands.Count<XElement>();
+                Tallies.CmdletCount = commands.Count();
                 ProjectCmdlets.Clear();
 
                 foreach (XElement cmd in commands)
@@ -407,14 +404,14 @@ namespace CmdletJack
                     ProjectCmdlets.Add(ProjCmds);
                 }
 
+                string cvspath = string.Empty;
                 PowerShell psConvCSV = PowerShell.Create();
                 psConvCSV.AddCommand("ConvertTo-Csv");
                 psConvCSV.AddParameter("NoTypeInformation");
 
 
-                string cvspath = String.Empty;
-
                 PrepDescrData();
+                curRptRunning = "Descriptions Report";
                 string csvPath = Path.Combine(saveDir, "CJ_Descriptions.csv");
                 if (allProjsFinished)
                 {
@@ -426,6 +423,7 @@ namespace CmdletJack
                 }
 
                 PrepParamData();
+                curRptRunning = "Parameters Report"; 
                 csvPath = Path.Combine(saveDir, "CJ_Parameters.csv");
                 if (allProjsFinished)
                 {
@@ -437,35 +435,18 @@ namespace CmdletJack
                 }
 
                 PrepExampleData();
+                curRptRunning = "Examples Report";
                 csvPath = Path.Combine(saveDir, "CJ_Examples.csv");
                 if (allProjsFinished)
                 {
-                    if (ExampleList.Count > 0)
                     {
                         IEnumerable<string> csvStrings = (IEnumerable<string>)psConvCSV.Invoke<string>(ExampleList);
                         WriteReport(csvPath, csvStrings, "CmdletExampleData");
                     }
                 }
 
-                PrepLinkData();
-                csvPath = Path.Combine(saveDir, "CJ_Links.csv");
-                if (allProjsFinished)
-                {
-                    IEnumerable<string> csvStrings = (IEnumerable<string>)psConvCSV.Invoke<string>(LinksList);
-                    WriteReport(csvPath, csvStrings, "CmdletLinkData");
-                }
-
-
-                PrepInputOutputData();
-                csvPath = Path.Combine(saveDir, "CJ_InOut.csv");
-                if (allProjsFinished)
-                {
-                    IEnumerable<string> csvStrings = (IEnumerable<string>)psConvCSV.Invoke<string>(InOutList);
-                    WriteReport(csvPath, csvStrings, "CmdletInputOutputData");
-                }
-
-
                 PrepSummaryData();
+                curRptRunning = "Summary Report";
                 csvPath = Path.Combine(saveDir, "CJ_Summary.csv");
                 if (allProjsFinished)
                 {
@@ -475,6 +456,26 @@ namespace CmdletJack
                         WriteReport(csvPath, csvStrings, "Summary");
                     }
                 }
+
+                PrepInputOutputData();
+                curRptRunning = "InOut Report";
+                csvPath = Path.Combine(saveDir, "CJ_InOut.csv");
+                if (allProjsFinished)
+                {
+                    IEnumerable<string> csvStrings = (IEnumerable<string>)psConvCSV.Invoke<string>(InOutList);
+                    WriteReport(csvPath, csvStrings, "CmdletInputOutputData");
+                }
+
+                PrepLinkData();
+                curRptRunning = "Links Report";
+                csvPath = Path.Combine(saveDir, "CJ_Links.csv");
+                if (allProjsFinished)
+                {
+                    IEnumerable<string> csvStrings = (IEnumerable<string>)psConvCSV.Invoke<string>(LinksList);
+                    WriteReport(csvPath, csvStrings, "CmdletLinkData");
+                }
+ 
+
 
             }
             catch (FileNotFoundException FNFEx)
@@ -493,7 +494,11 @@ namespace CmdletJack
                 string msg = IOEx.Message + " " + IOEx.StackTrace;
                 CreateWarning(projName, "N/A", "N/A", "Method", "DoProcess", "IOException - " + msg, "Internal");
             }
-
+            catch (ParameterBindingException)
+            {
+                Console.WriteLine("\n{0} - {1}", projName, "Cannot generate the " + curRptRunning + " and perhaps other reports. See the Warnings report on elements. Please try again on a new project XML file.\n");
+                CreateWarning(projName, "N/A", "N/A", "N/A", "Report failure", "Try again on a new project XML file.", "Element");
+            }
         }
 
         private static void DoSearch(string projfile)
@@ -542,7 +547,7 @@ namespace CmdletJack
             Tallies = new CmdletMetrics(); 
             xd = XDocument.Load(File.OpenRead(projfile));
             IEnumerable<XElement> commands = xd.Root.Descendants(nsCMD + "command");
-            int cc = commands.Count<XElement>();
+            int cc = commands.Count();
             Tallies.CmdletCount = cc;
             ProjectCmdlets.Clear();
 
@@ -563,7 +568,7 @@ namespace CmdletJack
                 psConvCSV.AddCommand("ConvertTo-Csv");
                 psConvCSV.AddParameter("NoTypeInformation");
 
-                string srchOpt = String.Empty;
+                string srchOpt = string.Empty;
                 if (matchcase == true && wholeword == true)
                 {
                     PrepSearchData(true, true);
@@ -652,10 +657,12 @@ namespace CmdletJack
             // called from the DoReports and SearchProj methods.
             // Populates objects with element values from the XML file.
 
-            string name = String.Empty;
-            string verb = String.Empty;
-            string noun = String.Empty;
-            string category = String.Empty;
+            string name = string.Empty;
+            string verb = string.Empty;
+            string noun = string.Empty;
+            string category = string.Empty;
+
+            string itemToAdd = String.Empty;
 
             try
             {
@@ -672,7 +679,7 @@ namespace CmdletJack
                 SplitVerb(name, out verb, out noun);
 
                 // note missing
-                if (synopsis == String.Empty)
+                if (synopsis == string.Empty)
                 {
                     CreateWarning(projName, verb, noun, "Synopsis", "Synopsis - missing", "need to write", "QA");
                     Tallies.NoSynopsis++;
@@ -682,7 +689,7 @@ namespace CmdletJack
                     QAVerbStart(synopsis, verb, noun, "Synopsis", "");
                 }
                 category = "Gather Data - Descr";
-                if (description == String.Empty)
+                if (description == string.Empty)
                 {
                     CreateWarning(projName, verb, noun, "Description", "Description - missing", "need to write", "QA");
                     Tallies.NoDescription++;
@@ -701,9 +708,9 @@ namespace CmdletJack
                 Dictionary<string, string> CmdletParamsTypes = new Dictionary<string, string>();
 
                 category = "GatherData - Params";
-                string pName = String.Empty;
-                string pDescr = String.Empty;
-                string pType = String.Empty;
+                string pName = string.Empty;
+                string pDescr = string.Empty;
+                string pType = string.Empty;
 
                 foreach (XElement xp in CmdParams)
                 {
@@ -724,7 +731,7 @@ namespace CmdletJack
                         bool missingPDescr = false;
 
                         //note missing
-                        if (pDescr == String.Empty)
+                        if (pDescr == string.Empty)
                         {
                             Tallies.NoParameter++;
                             missingPDescr = true;
@@ -741,12 +748,15 @@ namespace CmdletJack
 
                         try
                         {
+                            itemToAdd = pName;
                             CmdletParams.Add(pName, pDescr);
 
+                            // Hack:
                             // For unique keys for the CmdetParamTypes dictionary,
                             // prepend with the cmdlet name and a dot.
 
                             string pNameT = name + "." + pName;
+                            itemToAdd = pNameT;
                             CmdletParamsTypes.Add(pNameT, pType);
                         }
 
@@ -787,15 +797,15 @@ namespace CmdletJack
 
                 foreach (XElement xp in CmdInputTypes)
                 {
-                    string inT = String.Empty;
-                    string inD = String.Empty;
-                    string inU = String.Empty;
+                    string inT = string.Empty;
+                    string inD = string.Empty;
+                    string inU = string.Empty;
 
 
                     if (xp.Element(nsDEV + "type").Element(nsMML + "name").IsEmpty || string.IsNullOrWhiteSpace(xp.Element(nsDEV + "type").Element(nsMML + "name").Value))
                     {
                         CreateWarning(projName, verb, noun, "Input Type Name", "No content", "Empty Element", "Element");
-                        Tallies.NoInputObj++;
+                        Tallies.NoInputObj++;              
                     }
                     else
                     {
@@ -820,6 +830,8 @@ namespace CmdletJack
                         inD = xp.Element(nsMML + "description").Value.ToString();
 
                     }
+
+                    itemToAdd = inT;
                     inputTD.Add(inT, inD);
                     inputTU.Add(inT, inU);
 
@@ -828,9 +840,9 @@ namespace CmdletJack
                 foreach (XElement xp in CmdOutputTypes)
                 {
 
-                    string outT = String.Empty;
-                    string outD = String.Empty;
-                    string outU = String.Empty;
+                    string outT = string.Empty;
+                    string outD = string.Empty;
+                    string outU = string.Empty;
 
                     if (xp.Element(nsDEV + "type").Element(nsMML + "name").IsEmpty || string.IsNullOrWhiteSpace(xp.Element(nsDEV + "type").Element(nsMML + "name").Value))
                     {
@@ -861,6 +873,8 @@ namespace CmdletJack
                         outD = xp.Element(nsMML + "description").Value.ToString();
 
                     }
+
+                    itemToAdd = outT;
                     outputTD.Add(outT, outD);
                     outputTU.Add(outT, outU);
                 }
@@ -868,7 +882,6 @@ namespace CmdletJack
                 ProjCmds.InputTUri = inputTU;
                 ProjCmds.OutputTDescr = outputTD;
                 ProjCmds.OutputTUri = outputTU;
-
 
                 // Get Examples
 
@@ -882,9 +895,9 @@ namespace CmdletJack
                 foreach (XElement xe in CmdExamples)
                 {
 
-                    string eTitle = String.Empty;
-                    string eCode = String.Empty;
-                    string eDescr = String.Empty;
+                    string eTitle = string.Empty;
+                    string eCode = string.Empty;
+                    string eDescr = string.Empty;
 
                     if (xe.Element(nsMML + "title").IsEmpty || string.IsNullOrWhiteSpace(xe.Element(nsMML + "title").Value))
                     {
@@ -904,7 +917,8 @@ namespace CmdletJack
                     List<string> elemList = new List<string>();
                     foreach (XElement el in elems)
                     {
-                        elemList.Add(el.Name.ToString());
+                        itemToAdd = el.Name.ToString();
+                        elemList.Add(itemToAdd);
                     }
 
                     if (elemList.Contains("{http://schemas.microsoft.com/maml/dev/2004/10}code"))
@@ -934,7 +948,8 @@ namespace CmdletJack
                     }
                     else
                     {
-                        CreateWarning(projName, verb, noun, "Example", "new schema", "only commandlines", "Schema");
+                        // This else block may be outdated in terms of current schema
+                        CreateWarning(projName, verb, noun, "Example", "schema", "commandline elements", "Internal");
 
                         foreach (XElement xecl in xe.Element(nsCMD + "commandLines").Elements(nsCMD + "commandLine"))
                         {
@@ -942,11 +957,11 @@ namespace CmdletJack
                             {
                                 if (xeclt.IsEmpty || string.IsNullOrWhiteSpace(xeclt.Value))
                                 {
-                                    CreateWarning(projName, verb, noun, "Example", "new schema", "only commandlines", "Schema");
+                                    CreateWarning(projName, verb, noun, "Example", "schema", "commandline elements", "Internal");
                                 }
                                 else
                                 {
-                                    CreateWarning(projName, verb, noun, "Example", "code in commandLines schema", eCode, "Schema");
+                                    CreateWarning(projName, verb, noun, "Example", "schema", eCode, "Internal");
                                     eCode = xeclt.Value.ToString();
                                     QASniffCode(projName, eCode, verb, noun, exnum);
                                     hasExCode = true;
@@ -956,7 +971,7 @@ namespace CmdletJack
                     }
                     if (xe.Element(nsDEV + "remarks").IsEmpty || string.IsNullOrWhiteSpace(xe.Element(nsDEV + "remarks").Value))
                     {
-                        CreateWarning(projName, verb, noun, "Example", "missing description", "Example " + exnum.ToString(), "Element");
+                        CreateWarning(projName, verb, noun, "Example", "missing description", "Example " + exnum.ToString(), "QA");
                     }
                     else
                     {
@@ -969,99 +984,110 @@ namespace CmdletJack
 
                     try
                     {
+                        itemToAdd = eTitle; 
                         CmdletExampleCodes.Add(eTitle, eCode);
                     }
-                    catch (ArgumentException ArgEx)
+                    catch (ArgumentException)
                     {
-                        string msg = ArgEx.Message + " " + ArgEx.StackTrace;
-                        CreateWarning(projName, verb, noun, "Method", category, "ArgumentException - " + msg, "Internal");
+                        CreateWarning(projName, verb, noun, "Method", category, "ArgumentException" + itemToAdd, "Internal");
                     }
                     try
                     {
+                        itemToAdd = eTitle;
                         CmdletExampleDescriptions.Add(eTitle, eDescr);
                     }
-                    catch (ArgumentException ArgEx)
+                    catch (ArgumentException)
                     {
-                        string msg = ArgEx.Message + " " + ArgEx.StackTrace;
-                        CreateWarning(projName, verb, noun, "Method", category, "ArgumentException - " + msg, "Internal");
+                        CreateWarning(projName, verb, noun, "Method", category, "ArgumentException - " + itemToAdd, "Internal");
                     }
                     exnum++;
                 }
                 ProjCmds.ExampleCodes = CmdletExampleCodes;
                 ProjCmds.ExampleDescriptions = CmdletExampleDescriptions;
 
-                if (CmdExamples.Count<XElement>() == 0 || hasExCode == false)
+                if (CmdExamples.Count() == 0 || hasExCode == false)
                 {
                     CreateWarning(projName, verb, noun, "Example", "Example - missing", "need to write", "QA");
                     Tallies.NoExample++;
                 }
 
                 // Get Links
-                IEnumerable<XElement> CmdLinks = cmd.Element(nsMML + "relatedLinks").Elements(nsMML + "navigationLink");
                 Dictionary<string, string> CmdletLinks = new Dictionary<string, string>();
-                string lTxt = String.Empty;
-                category = "GatherData - Links";
 
-                foreach (XElement xl in CmdLinks)
+                if (!cmd.Element(nsMML + "relatedLinks").HasElements)
                 {
+                    itemToAdd = "*** no links in " + verb + "-" + noun + " topic ****";
+                    CmdletLinks.Add(itemToAdd, string.Empty);
+                    CreateWarning(projName, verb, noun, "Link", "Empty node", "Add at least one link", "Element");
 
-                    if (!xl.Element(nsMML + "linkText").IsEmpty || string.IsNullOrWhiteSpace(xl.Element(nsMML + "linkText").Value))
+               }
+
+                else
+                {
+                    IEnumerable<XElement> linkNodes = cmd.Element(nsMML + "relatedLinks").Elements(nsMML + "navigationLink");
+                    string lTxt = string.Empty;
+                    string lUri = string.Empty;
+                    category = "GatherData - Links";
+
+                    foreach (XElement xl in linkNodes)
                     {
-                        lTxt = xl.Element(nsMML + "linkText").Value.ToString();
-
-                        if (lTxt == ProjCmds.Name)
+                        if (xl.HasElements)
                         {
-                            CreateWarning(projName, verb, noun, "Link", "Links - topic links to itself", "need to delete", "QA");
-                            Tallies.LinkIssue++;
+
+                            if (!xl.Element(nsMML + "linkText").IsEmpty || string.IsNullOrWhiteSpace(xl.Element(nsMML + "linkText").Value))
+                            {
+                                lTxt = xl.Element(nsMML + "linkText").Value.ToString();
+
+                                if (lTxt == ProjCmds.Name)
+                                {
+                                    CreateWarning(projName, verb, noun, "Link", "Links - topic links to itself", "need to delete", "QA");
+                                    Tallies.LinkIssue++;
+                                }
+                            }
+                            if (lTxt == string.Empty)
+                            {
+                                CreateWarning(projName, verb, noun, "Link", "link text", "empty value", "Element");
+                                Tallies.LinkIssue++;
+                            }
+
+                            lUri = xl.Element(nsMML + "uri").Value.ToString();
+                            try
+                            {
+                                QASniffURI(projName, lUri, verb, noun);
+                                itemToAdd = lTxt;
+                                CmdletLinks.Add(lTxt, lUri);
+                            }
+
+                            catch (ArgumentException)
+                            {
+                                CreateWarning(projName, verb, noun, "Link", "Links - duplicate link in topic", lTxt, "QA");
+                                Tallies.LinkIssue++;
+                            }
+                            bool hasFWLink = false;
+                            foreach (KeyValuePair<string, string> kvp in CmdletLinks)
+                            {
+                                if (kvp.Value.ToLower().Contains("linkid"))
+                                {
+                                    hasFWLink = true;
+                                }
+                            }
+                            if (hasFWLink == false)
+                            {
+                                // add empty row to report if no FWLink
+                                itemToAdd = "Need Online Version link for " + verb + "-" + noun;
+                                if (!CmdletLinks.Keys.Contains<string>(itemToAdd))
+                                    CmdletLinks.Add(itemToAdd, string.Empty);
+
+                                CreateWarning(projName, verb, noun, "Link", "Links - missing FWLink", "need to create", "QA");
+                                Tallies.NoFWLink++;
+                            }
                         }
-                    }
-                    if (lTxt == String.Empty)
-                    {
-                        CreateWarning(projName, verb, noun, "Link", "link text", "empty value", "Element");
-                        Tallies.LinkIssue++;
-                    }
-
-
-
-                    string lUri = xl.Element(nsMML + "uri").Value.ToString();
-                    try
-                    {
-                        QASniffURI(projName, lUri, verb, noun);
-                        if (lUri.StartsWith("http"))
-                        {
-                            CmdletLinks.Add(lTxt, lUri);
-                        }
-
-                    }
-
-                    catch (ArgumentException)
-                    {
-                        CreateWarning(projName, verb, noun, "Link", "Links - duplicate link in topic", lTxt, "QA");
-                        Tallies.LinkIssue++;
                     }
                 }
+
                 ProjCmds.Links = CmdletLinks;
 
-                bool hasFWLink = false;
-                foreach (KeyValuePair<string, string> kvp in CmdletLinks)
-                {
-                    if (kvp.Value.Contains("fwlink"))
-                    {
-                        hasFWLink = true;
-                    }
-                }
-                if (hasFWLink == false)
-                {
-                    // add empty row to report if no FWLink
-                    CmdletLinks.Add("Online Version:", String.Empty);
-
-                    CreateWarning(projName, verb, noun, "Link", "Links - missing FWLink", "need to create", "QA");
-                    Tallies.NoFWLink++;
-                }
-
-
             }
-
 
             catch (NullReferenceException NullEx)
             {
@@ -1069,13 +1095,11 @@ namespace CmdletJack
                 CreateWarning(projName, verb, noun, "Method", category, "NullReferenceException - " + msg, "Internal");
             }
 
-            catch (ArgumentException ArgEx)
+            catch (ArgumentException)
             {
-                string msg = ArgEx.Message + " " + ArgEx.StackTrace;
-                CreateWarning(projName, verb, noun, "Method", category, "ArgumentException - " + msg, "Internal");
+                CreateWarning(projName, verb, noun, "Method", category, "ArgumentException - " + itemToAdd, "Internal");
             }
-
-
+ 
             return ProjCmds;
 
         }
@@ -1083,9 +1107,9 @@ namespace CmdletJack
         private static void PrepSearchData(bool match, bool whole)
         {
 
-            string verb = String.Empty;
-            string noun = String.Empty;
-            string option = String.Empty;
+            string verb = string.Empty;
+            string noun = string.Empty;
+            string option = string.Empty;
 
             try
             {
@@ -1122,7 +1146,7 @@ namespace CmdletJack
                         sr.CmdletVerb = verb;
                         sr.CmdletNoun = noun;
                         sr.Element = "Synopsis";
-                        sr.Name = String.Empty;
+                        sr.Name = string.Empty;
                         sr.Result = cd.Synopsis;
                         sr.TimeStamp = GetTimeStamp();
                         Tallies.SearchHit++;
@@ -1137,7 +1161,7 @@ namespace CmdletJack
                         sr.CmdletVerb = verb;
                         sr.CmdletNoun = noun;
                         sr.Element = "Description";
-                        sr.Name = String.Empty;
+                        sr.Name = string.Empty;
                         sr.Result = cd.Description;
                         sr.TimeStamp = GetTimeStamp();
                         Tallies.SearchHit++;
@@ -1311,18 +1335,18 @@ namespace CmdletJack
             catch (IOException IOEx)
             {
                 string msg = IOEx.Message + " " + IOEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveDescrData", "IOException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PrepDescrData", "IOException - " + msg, "Internal");
 
             }
             catch (NullReferenceException NullEx)
             {
                 string msg = NullEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveDescrData", "NullReferenceException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PrepDescrData", "NullReferenceException - " + msg, "Internal");
             }
             catch (ParameterBindingException BEx)
             {
                 string msg = BEx.Message + " " + BEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveDescrData", "ParameterBindingException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PreopDescrData", "ParameterBindingException - " + msg, "Internal");
 
 
             }
@@ -1360,7 +1384,7 @@ namespace CmdletJack
                             QASniffPowerShellBranding(projName, kvp.Value, verb, noun, "Parameter");
                             QASniffCustom(projName, kvp.Value, verb, noun, "Parameter");
 
-                            string pt = String.Empty;
+                            string pt = string.Empty;
 
                             // The paramter name in the ParamTypes dictionary
                             // is prepended with the cmdlet name and a dot.
@@ -1385,17 +1409,17 @@ namespace CmdletJack
             catch (IOException IOEx)
             {
                 string msg = IOEx.Message + " " + IOEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveParamData", "IOException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PrepParamData", "IOException - " + msg, "Internal");
             }
             catch (NullReferenceException NullEx)
             {
                 string msg = NullEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveParamData", "NullReferenceException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PrepParamData", "NullReferenceException - " + msg, "Internal");
             }
             catch (ParameterBindingException BEx)
             {
                 string msg = BEx.Message + " " + BEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveParamData", "ParameterBindingException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PrepParamData", "ParameterBindingException - " + msg, "Internal");
 
             }
         }
@@ -1429,7 +1453,7 @@ namespace CmdletJack
                                 ced.ExampleCode = kvp.Value;
                                 ced.TimeStamp = GetTimeStamp();
 
-                                string ed = String.Empty;
+                                string ed = string.Empty;
                                 if (cd.ExampleDescriptions.TryGetValue(kvp.Key, out ed))
                                 {
                                     ced.ExampleDescr = ed;
@@ -1480,6 +1504,7 @@ namespace CmdletJack
 
                     foreach (KeyValuePair<string, string> kvp in cd.InputTDescr)
                     {
+
                         CmdletInputOutputData ciod = new CmdletInputOutputData();
                         ciod.CmdletProj = projName;
                         ciod.CmdletVerb = verb;
@@ -1487,11 +1512,11 @@ namespace CmdletJack
                         ciod.Direction = "Input";
                         ciod.TypeName = kvp.Key;
                         ciod.TypeDescr = kvp.Value;
-                        string iUri = String.Empty;
+                        string iUri = string.Empty;
                         bool URIhit = cd.InputTUri.TryGetValue(kvp.Key, out iUri);
                         if (URIhit == false)
                         {
-                            iUri = String.Empty;
+                            iUri = string.Empty;
                         }
                         ciod.TypeURI = iUri;
                         ciod.TimeStamp = GetTimeStamp();
@@ -1507,11 +1532,11 @@ namespace CmdletJack
                         ciod.Direction = "Output";
                         ciod.TypeName = kvp.Key;
                         ciod.TypeDescr = kvp.Value;
-                        string oUri = String.Empty;
+                        string oUri = string.Empty;
                         bool URIhit = cd.OutputTUri.TryGetValue(kvp.Key, out oUri);
                         if (URIhit == false)
                         {
-                            oUri = String.Empty;
+                            oUri = string.Empty;
                         }
                         ciod.TypeURI = oUri;
                         ciod.TimeStamp = GetTimeStamp();
@@ -1524,13 +1549,13 @@ namespace CmdletJack
             catch (NullReferenceException NullEx)
             {
                 string msg = NullEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveLinkData", "NullReferenceException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PrepInputOutputData", "NullReferenceException - " + msg, "Internal");
 
             }
             catch (ParameterBindingException BEx)
             {
                 string msg = BEx.Message + " " + BEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveLinkData", "ParameterBindingException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PrepInputOutputData", "ParameterBindingException - " + msg, "Internal");
             }
 
 
@@ -1544,6 +1569,7 @@ namespace CmdletJack
 
                 foreach (CmdletData cd in ProjectCmdlets)
                 {
+
                     string verb;
                     string noun;
                     SplitVerb(cd.Name, out verb, out noun);
@@ -1559,17 +1585,18 @@ namespace CmdletJack
                         LinksList.Add(cld);
                     }
                 }
+
             }
             catch (NullReferenceException NullEx)
             {
                 string msg = NullEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveLinkData", "NullReferenceException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PrepLinkData", "NullReferenceException - " + msg, "Internal");
 
             }
             catch (ParameterBindingException BEx)
             {
                 string msg = BEx.Message + " " + BEx.StackTrace;
-                CreateWarning(projName, "N/A", "N/A", "Method", "SaveLinkData", "ParameterBindingException - " + msg, "Internal");
+                CreateWarning(projName, "N/A", "N/A", "Method", "PrepLinkData", "ParameterBindingException - " + msg, "Internal");
             }
 
         }
@@ -1758,7 +1785,7 @@ namespace CmdletJack
             // Called from the DoReports method. The method creates spreadsheets.
             string[] csvS = csvStrings.ToArray<string>();
             string[] DataOut;
-            string saveMode = String.Empty;
+            string saveMode = string.Empty;
             StreamWriter sw;
 
             DataOut = csvS;
@@ -1846,7 +1873,7 @@ namespace CmdletJack
                 string[] DataOut;
                 DataOut = csvS;
 
-                string saveMode = String.Empty;
+                string saveMode = string.Empty;
 
                 if (File.Exists(csvPath) && append == true)
                 {
@@ -1903,13 +1930,6 @@ namespace CmdletJack
 
                 string intlttl = internalQ.Count<Warning>().ToString();
 
-                IEnumerable<Warning> schemaQ =
-                from warn in Warns
-                where warn.WarningType == "Schema"
-                select warn;
-
-                string schemattl = schemaQ.Count<Warning>().ToString();
-
                 StreamWriter sw;
 
                 if (append == false)
@@ -1940,7 +1960,6 @@ namespace CmdletJack
                 Console.WriteLine("Logged {0} QA warnings.", qattl);
                 Console.WriteLine("Logged {0} Custom QA warnings.", qaqttl);
                 Console.WriteLine("Logged {0} Element warnings.", elemttl);
-                Console.WriteLine("Logged {0} Schema warnings.", schemattl);
                 Console.WriteLine("Logged {0} Internal warnings.", intlttl);
             }
             catch (ArgumentException ArgEx)
@@ -1950,24 +1969,22 @@ namespace CmdletJack
             }
             catch (IOException IOEx)
             {
-                Console.WriteLine("Cannot save warnings file.");
+                Console.WriteLine("Cannot save warnings report.");
                 Console.WriteLine("IOException - " + fi.Name + ": " + IOEx.Message);
 
             }
             catch (NullReferenceException NullEx)
             {
-                Console.WriteLine("Cannot save warnings file.");
+                Console.WriteLine("Cannot save warnings report.");
                 Console.WriteLine("NullReferenceException - " + fi.Name + ": " + NullEx.Message);
 
             }
             catch (ParameterBindingException BEx)
             {
-                Console.WriteLine("Cannot save warnings file.");
+                Console.WriteLine("Cannot save warnings report.");
                 Console.WriteLine("ParamterBindingException - " + fi.Name + ": " + BEx.Message);
 
             }
-
-
         }
 
         #endregion
@@ -1985,6 +2002,7 @@ namespace CmdletJack
             CommonParams.Add("WarningAction");
             CommonParams.Add("WarningVariable");
             CommonParams.Add("WhatIf");
+			CommonParams.Add("Whatif");
             CommonParams.Add("Confirm");
 
         }
@@ -2063,7 +2081,7 @@ namespace CmdletJack
             Console.WriteLine("Search options: specify 'matchcase' to match case, 'wholeword' to match whole words,");
             Console.WriteLine("or 'both' to use matchcase and wholeword.");
             Console.WriteLine();
-            Console.WriteLine("CmdletJack version: 2.5 - (c) 2015 Microsoft Corporation. All rights reserved.");
+            Console.WriteLine("CmdletJack version: 2.7 - (c) 2016 Microsoft Corporation. All rights reserved.");
         }
 
         private static void DeleteIfExists(string path)
@@ -2072,20 +2090,6 @@ namespace CmdletJack
             {
                 File.Delete(path);
             }
-        }
-
-        private static void FillValidReportTypes()
-        {
-            // but do not include "search"
-
-            ValidReportTypes.Add("descr");
-            ValidReportTypes.Add("params");
-            ValidReportTypes.Add("paramsnc");
-            ValidReportTypes.Add("examples");
-            ValidReportTypes.Add("examplesnone");
-            ValidReportTypes.Add("links");
-            ValidReportTypes.Add("summary");
-            ValidReportTypes.Add("all");
         }
 
         private static void FillApprovedCompanyNames()
@@ -2258,7 +2262,7 @@ namespace CmdletJack
                         if (HasSpecialCaseText(descr) == false)
                         {
                             // Sentence starts with a single character word
-                            if (pName == String.Empty)
+                            if (pName == string.Empty)
                             {
                                 CreateWarning(projName, verb, noun, element, "Synopsis - might not start with a verb", descr.Substring(0, sniplen) + " ...", "QA");
                                 Tallies.SynopsisQANoVerb++;
@@ -2281,7 +2285,7 @@ namespace CmdletJack
                             if (descr.Substring(space - 1, 1) != "s" && descr.Substring(space - 1, 1) != "y")
                             {
                                 // First word does not end with an 's' or 'y'
-                                if (pName == String.Empty)
+                                if (pName == string.Empty)
                                 {
                                     CreateWarning(projName, verb, noun, element, "Synopsis - might not start with a verb", descr.Substring(0, sniplen) + " ...", "QA");
                                     Tallies.SynopsisQANoVerb++;
@@ -2302,7 +2306,7 @@ namespace CmdletJack
                             //Starts with a word longer than one character followed by a comma
                             if (descr.Substring(comma - 1, 1) != "s" && descr.Substring(comma - 1, 1) != "y")
                             {
-                                if (pName == String.Empty)
+                                if (pName == string.Empty)
                                 {
                                     CreateWarning(projName, verb, noun, element, "Synopsis - might not start with a verb", descr.Substring(0, sniplen) + " ...", "QA");
                                     Tallies.SynopsisQANoVerb++;
@@ -2373,7 +2377,7 @@ namespace CmdletJack
 
         private static void QASniffCode(string projName, string code, string verb, string noun, int exnum)
         {
-            string codesnip = String.Empty;
+            string codesnip = string.Empty;
 
 
             // no https (SSL layer)
@@ -2504,7 +2508,7 @@ namespace CmdletJack
                             for (int x = 0; x < idLen; x++)
                             {
                                 string n = id.Substring(x, 1);
-                                if (n == String.Empty || n == null)
+                                if (n == string.Empty || n == null)
                                 {
                                     idOK = false;
                                 }
