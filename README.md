@@ -1,5 +1,5 @@
 # CmdletJack
-CmdletJack creates spreadsheets (.CSV files) of cmdlet documentation
+CmdletJack creates spreadsheets (.CSV files) of Windows PowerShell cmdlet documentation
 data as reports. Usage is the path to the directory of the cmdlet
 projects or to a specific file. Reports are automatically generated.
 Syntax for all projects:
